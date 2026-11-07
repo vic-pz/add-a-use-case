@@ -1478,6 +1478,10 @@ Details:
 - **3a. The selected student is already inactive, or becomes inactive before confirmation is processed:**
   - 3a1. The system reports that the selected student is already deactivated and makes no changes.
   - 3a2. Use case ends.
+- **4a. The course admin or instructor cancels the warning:**
+  - 4a1. The system dismisses the warning and returns to the student's details without saving any changes.
+  - 4a2. Use case ends.
+
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.
 **Business Rules:** BR-student-lifecycle, BR-submission-owed, BR-inactive-evaluatee
