@@ -200,7 +200,8 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, this.baseUrl + "/instructors/{instructorId}").access(this.userOwnershipAuthorizationManager)
                         .requestMatchers(HttpMethod.PUT, this.baseUrl + "/instructors/{instructorId}").access(this.userOwnershipAuthorizationManager)
                         .requestMatchers(HttpMethod.DELETE, this.baseUrl + "/instructors/{instructorId}").access(this.userOwnershipAuthorizationManager)
-                        .requestMatchers(HttpMethod.PUT, this.baseUrl + "/instructors/sections/{sectionId}/default").access(this.sectionMembershipAuthorizationManager)
+                        .requestMatchers(HttpMethod.PUT, this.baseUrl + "/instructors/sections/{sectionId}/default")
+                            .access(AuthorizationManagers.anyOf(this.sectionOwnershipAuthorizationManager, this.sectionInstructorAuthorizationManager))
                         .requestMatchers(HttpMethod.PUT, this.baseUrl + "/instructors/courses/{courseId}/default").access(this.courseMembershipAuthorizationManager)
 
                         // Security rules for the /students/** endpoint.

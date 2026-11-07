@@ -146,6 +146,9 @@ class StudentIntegrationTest extends AbstractIntegrationTest {
         this.entityManager.flush();
         this.entityManager.clear();
 
+        this.mockMvc.perform(put(this.baseUrl + "/instructors/sections/" + john.getSection().getSectionId() + "/default")
+                        .header(HttpHeaders.AUTHORIZATION, this.adminToken))
+                .andExpect(status().isOk());
         this.mockMvc.perform(post(this.baseUrl + "/students/4/deactivate").header(HttpHeaders.AUTHORIZATION, this.adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.enabled").value(false));
