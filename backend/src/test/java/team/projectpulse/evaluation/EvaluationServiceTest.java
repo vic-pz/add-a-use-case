@@ -305,6 +305,7 @@ class EvaluationServiceTest {
         given(this.clock.getZone()).willReturn(fixedClock.getZone());
 
         PeerEvaluation newPeerEvaluation = new PeerEvaluation("2023-W31", amanda, woody, List.of(), "public comment", "private comment");
+        given(this.studentRepository.findCurrentEnabledForUpdate(this.woody.getId())).willReturn(Optional.of(1));
         given(this.evaluationRepository.save(newPeerEvaluation)).willReturn(newPeerEvaluation);
 
         // When
@@ -321,7 +322,8 @@ class EvaluationServiceTest {
         Clock fixedClock = Clock.fixed(fixedDate.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault());
         given(this.clock.instant()).willReturn(fixedClock.instant());
         given(this.clock.getZone()).willReturn(fixedClock.getZone());
-        this.woody.setEnabled(false);
+        // The request already loaded an active evaluatee, but deactivation won the row lock.
+        given(this.studentRepository.findCurrentEnabledForUpdate(this.woody.getId())).willReturn(Optional.of(0));
         PeerEvaluation evaluation = new PeerEvaluation("2023-W31", this.amanda, this.woody, List.of(), "", "");
 
         assertThat(catchThrowable(() -> this.evaluationService.addPeerEvaluation(evaluation)))
@@ -418,6 +420,7 @@ class EvaluationServiceTest {
         given(this.clock.getZone()).willReturn(fixedClock.getZone());
 
         PeerEvaluation newPeerEvaluation = new PeerEvaluation("2023-W31", john, eric, List.of(), "public comment", "private comment");
+        given(this.studentRepository.findCurrentEnabledForUpdate(this.eric.getId())).willReturn(Optional.of(1));
         given(this.evaluationRepository.findByWeekAndEvaluatorIdAndEvaluateeId("2023-W31", 3, 4)).willReturn(Optional.of(newPeerEvaluation));
 
         // When

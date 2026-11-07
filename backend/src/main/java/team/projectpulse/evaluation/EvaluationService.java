@@ -67,7 +67,8 @@ public class EvaluationService {
             throw new PeerEvaluationIllegalArgumentException("The evaluator and evaluatee must be on the same team.");
         }
 
-        if (!newPeerEvaluation.getEvaluatee().isEnabled()) {
+        Student evaluatee = newPeerEvaluation.getEvaluatee();
+        if (!evaluatee.isEnabled() || this.studentRepository.findCurrentEnabledForUpdate(evaluatee.getId()).orElse(0) != 1) {
             throw new PeerEvaluationIllegalArgumentException("You cannot submit an evaluation for an inactive teammate.");
         }
 

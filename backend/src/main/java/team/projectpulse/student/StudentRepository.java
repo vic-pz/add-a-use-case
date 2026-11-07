@@ -33,6 +33,11 @@ public interface StudentRepository extends JpaRepository<Student, Integer>, JpaS
             """)
     Optional<Student> findManagedForUpdate(@Param("studentId") Integer studentId, @Param("callerId") Integer callerId);
 
+    // A locking scalar read sees the current database flag even if the request already loaded the student.
+    @Query(value = "select cast(enabled as unsigned) from peer_evaluation_user where id = :studentId for update",
+            nativeQuery = true)
+    Optional<Integer> findCurrentEnabledForUpdate(@Param("studentId") Integer studentId);
+
     // Find all students in a section
     List<Student> findBySectionSectionId(Integer sectionId);
 
