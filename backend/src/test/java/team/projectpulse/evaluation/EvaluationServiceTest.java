@@ -316,6 +316,21 @@ class EvaluationServiceTest {
     }
 
     @Test
+    void refusesNewEvaluationOfAnInactiveTeammate() {
+        LocalDate fixedDate = LocalDate.of(2023, 8, 13);
+        Clock fixedClock = Clock.fixed(fixedDate.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault());
+        given(this.clock.instant()).willReturn(fixedClock.instant());
+        given(this.clock.getZone()).willReturn(fixedClock.getZone());
+        this.woody.setEnabled(false);
+        PeerEvaluation evaluation = new PeerEvaluation("2023-W31", this.amanda, this.woody, List.of(), "", "");
+
+        assertThat(catchThrowable(() -> this.evaluationService.addPeerEvaluation(evaluation)))
+                .isInstanceOf(PeerEvaluationIllegalArgumentException.class)
+                .hasMessage("You cannot submit an evaluation for an inactive teammate.");
+        verify(this.evaluationRepository, times(0)).save(any(PeerEvaluation.class));
+    }
+
+    @Test
     void testAddPeerEvaluationNotInActiveWeeks() {
         // Given
         // No clock is needed here: an inactive week is refused before the previous-week check reads the clock
@@ -590,6 +605,24 @@ class EvaluationServiceTest {
         assertThat(report.getPeerEvaluationAverages().get(1).getAverageTotalScore()).isCloseTo(50.0, within(0.01));
         assertThat(report.getPeerEvaluationAverages().get(2).getAverageTotalScore()).isCloseTo(51.0, within(0.01));
         assertThat(report.getPeerEvaluationAverages().get(3).getAverageTotalScore()).isCloseTo(52.0, within(0.01));
+    }
+
+    @Test
+    void inactiveStudentAppearsOnlyForWeeksWithReceivedEvaluations() {
+        this.eric.setEnabled(false);
+        given(this.sectionRepository.findById(2)).willReturn(Optional.of(this.eric.getSection()));
+        given(this.studentRepository.findBySectionSectionId(2)).willReturn(List.of(this.eric));
+        given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", this.eric.getId()))
+                .willReturn(this.ericsW31Evaluations);
+
+        WeeklyPeerEvaluationReport history = this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W31");
+        WeeklyPeerEvaluationReport noRatings = this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W33");
+
+        assertThat(history.getPeerEvaluationAverages()).singleElement().satisfies(row -> {
+            assertThat(row.getStudentId()).isEqualTo(this.eric.getId());
+            assertThat(row.getAverageTotalScore()).isCloseTo(50.0, within(0.01));
+        });
+        assertThat(noRatings.getPeerEvaluationAverages()).isEmpty();
     }
 
     @Test
