@@ -10,6 +10,7 @@ import team.projectpulse.system.StatusCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import team.projectpulse.student.StudentAlreadyDeactivatedException;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
@@ -189,6 +190,12 @@ public class ExceptionHandlerAdvice {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     Result handleSectionUnlockNotAllowedException(SectionUnlockNotAllowedException ex) {
         return new Result(false, StatusCode.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(StudentAlreadyDeactivatedException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    Result handleStudentAlreadyDeactivated(StudentAlreadyDeactivatedException ex) {
+        return new Result(false, StatusCode.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(SectionLockRequiredException.class)

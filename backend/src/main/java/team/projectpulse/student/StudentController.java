@@ -62,6 +62,12 @@ public class StudentController {
         return new Result(true, StatusCode.SUCCESS, "Add student successfully", savedStudentDto);
     }
 
+    @PostMapping("/{studentId}/deactivate")
+    public Result deactivateStudent(@PathVariable Integer studentId) {
+        Student student = this.studentService.deactivateStudent(studentId);
+        return new Result(true, StatusCode.SUCCESS, "Student deactivated.", this.studentToStudentDtoConverter.convert(student));
+    }
+
     @PutMapping("/{studentId}")
     public Result updateStudent(@PathVariable Integer studentId,
                                 @RequestParam(defaultValue = "false") boolean reactivate,
