@@ -347,6 +347,7 @@ A business rule (`BR-*`, owned by [business-rules.md](requirements/business-rule
 | `BR-document-creation` | `UC-TPL-provision-documents` | — | — |
 | `BR-edit-lock-required` | `UC-COL-collaborative-edit`, `UC-DOC-edit-document`, `UC-DOC-edit-use-case` | `DI-concurrency-control`, (prose) | — |
 | `BR-evaluation-editable-until-close` | `UC-EVA-submit-evaluation` | — | — |
+| `BR-inactive-evaluatee` | `UC-STU-deactivate-student`, `UC-EVA-submit-evaluation`, `UC-EVA-section-evaluation-report` | — | — |
 | `BR-evaluation-private-comment` | `UC-EVA-section-evaluation-report`, `UC-EVA-student-evaluation-report`, `UC-EVA-submit-evaluation`, `UC-EVA-view-own-evaluation` | `FR-SEC-authorization` | — |
 | `BR-evaluation-submission-window` | `UC-EVA-submit-evaluation`, `UC-NOT-remind-non-submitters` | — | — |
 | `BR-evaluation-visibility` | `UC-EVA-view-own-evaluation` | `FR-SEC-authorization` | — |
