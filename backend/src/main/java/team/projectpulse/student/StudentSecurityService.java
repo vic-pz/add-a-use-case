@@ -1,5 +1,7 @@
 package team.projectpulse.student;
 
+import team.projectpulse.course.Course;
+import team.projectpulse.section.Section;
 import team.projectpulse.system.UserUtils;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,21 @@ public class StudentSecurityService {
     public StudentSecurityService(StudentRepository studentRepository, UserUtils userUtils) {
         this.studentRepository = studentRepository;
         this.userUtils = userUtils;
+    }
+
+    public boolean canManageLifecycle(Integer studentId) {
+        Integer callerId = this.userUtils.getUserId();
+        if (callerId == null) {
+            return false;
+        }
+        Student student = this.studentRepository.findById(studentId).orElse(null);
+        if (student == null || student.getSection() == null) {
+            return false;
+        }
+        Section section = student.getSection();
+        Course course = section.getCourse();
+        return (course != null && course.getCourseAdmin() != null && callerId.equals(course.getCourseAdmin().getId()))
+                || section.getInstructors().stream().anyMatch(instructor -> callerId.equals(instructor.getId()));
     }
 
     public boolean isStudentSelf(Integer studentId) {

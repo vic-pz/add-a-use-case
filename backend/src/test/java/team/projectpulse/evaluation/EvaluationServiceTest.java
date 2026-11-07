@@ -305,6 +305,7 @@ class EvaluationServiceTest {
         given(this.clock.getZone()).willReturn(fixedClock.getZone());
 
         PeerEvaluation newPeerEvaluation = new PeerEvaluation("2023-W31", amanda, woody, List.of(), "public comment", "private comment");
+        given(this.studentRepository.findCurrentEnabledForUpdate(this.woody.getId())).willReturn(Optional.of(1));
         given(this.evaluationRepository.save(newPeerEvaluation)).willReturn(newPeerEvaluation);
 
         // When
@@ -313,6 +314,22 @@ class EvaluationServiceTest {
         // Then
         assertThat(savedPeerEvaluation).isEqualTo(newPeerEvaluation);
         verify(this.evaluationRepository, times(1)).save(newPeerEvaluation);
+    }
+
+    @Test
+    void refusesNewEvaluationOfAnInactiveTeammate() {
+        LocalDate fixedDate = LocalDate.of(2023, 8, 13);
+        Clock fixedClock = Clock.fixed(fixedDate.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault());
+        given(this.clock.instant()).willReturn(fixedClock.instant());
+        given(this.clock.getZone()).willReturn(fixedClock.getZone());
+        // The request already loaded an active evaluatee, but deactivation won the row lock.
+        given(this.studentRepository.findCurrentEnabledForUpdate(this.woody.getId())).willReturn(Optional.of(0));
+        PeerEvaluation evaluation = new PeerEvaluation("2023-W31", this.amanda, this.woody, List.of(), "", "");
+
+        assertThat(catchThrowable(() -> this.evaluationService.addPeerEvaluation(evaluation)))
+                .isInstanceOf(PeerEvaluationIllegalArgumentException.class)
+                .hasMessage("You cannot submit an evaluation for an inactive teammate.");
+        verify(this.evaluationRepository, times(0)).save(any(PeerEvaluation.class));
     }
 
     @Test
@@ -403,6 +420,7 @@ class EvaluationServiceTest {
         given(this.clock.getZone()).willReturn(fixedClock.getZone());
 
         PeerEvaluation newPeerEvaluation = new PeerEvaluation("2023-W31", john, eric, List.of(), "public comment", "private comment");
+        given(this.studentRepository.findCurrentEnabledForUpdate(this.eric.getId())).willReturn(Optional.of(1));
         given(this.evaluationRepository.findByWeekAndEvaluatorIdAndEvaluateeId("2023-W31", 3, 4)).willReturn(Optional.of(newPeerEvaluation));
 
         // When
@@ -590,6 +608,24 @@ class EvaluationServiceTest {
         assertThat(report.getPeerEvaluationAverages().get(1).getAverageTotalScore()).isCloseTo(50.0, within(0.01));
         assertThat(report.getPeerEvaluationAverages().get(2).getAverageTotalScore()).isCloseTo(51.0, within(0.01));
         assertThat(report.getPeerEvaluationAverages().get(3).getAverageTotalScore()).isCloseTo(52.0, within(0.01));
+    }
+
+    @Test
+    void inactiveStudentAppearsOnlyForWeeksWithReceivedEvaluations() {
+        this.eric.setEnabled(false);
+        given(this.sectionRepository.findById(2)).willReturn(Optional.of(this.eric.getSection()));
+        given(this.studentRepository.findBySectionSectionId(2)).willReturn(List.of(this.eric));
+        given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", this.eric.getId()))
+                .willReturn(this.ericsW31Evaluations);
+
+        WeeklyPeerEvaluationReport history = this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W31");
+        WeeklyPeerEvaluationReport noRatings = this.evaluationService.generateWeeklyPeerEvaluationReportForSection(2, "2023-W33");
+
+        assertThat(history.getPeerEvaluationAverages()).singleElement().satisfies(row -> {
+            assertThat(row.getStudentId()).isEqualTo(this.eric.getId());
+            assertThat(row.getAverageTotalScore()).isCloseTo(50.0, within(0.01));
+        });
+        assertThat(noRatings.getPeerEvaluationAverages()).isEmpty();
     }
 
     @Test

@@ -13,14 +13,13 @@
     <el-form-item label="Username:" prop="username">
       <el-input v-model="studentBeingEdited.username"></el-input>
     </el-form-item>
-    <el-form-item label="Status:" prop="enabled">
-      <el-switch
-        v-model="studentBeingEdited.enabled"
-        inline-prompt
-        active-text="Enabled"
-        inactive-text="Disabled"
-        style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
-      />
+    <el-form-item v-if="loaded" label="Status:">
+      <el-tag :type="active ? 'success' : 'danger'">{{
+        active ? 'Enabled' : 'Deactivated'
+      }}</el-tag>
+    </el-form-item>
+    <el-form-item v-if="loaded && !active" label="Enable account:">
+      <el-switch v-model="enableOnSave" aria-label="Enable account on save" />
     </el-form-item>
     <el-form-item label="First Name:" prop="firstName">
       <el-input v-model="studentBeingEdited.firstName"></el-input>
@@ -36,20 +35,36 @@
     </el-form-item>
     <div style="display: flex; justify-content: end">
       <el-button @click="$emit('close-dialog')"> Cancel </el-button>
-      <el-button type="primary" @click="updateExistingStudent()"> Confirm </el-button>
+      <el-button
+        v-if="loaded && active"
+        type="danger"
+        :loading="deactivating"
+        @click="confirmDeactivation"
+      >
+        Deactivate Student
+      </el-button>
+      <el-button type="primary" :disabled="!loaded || deactivating" @click="updateExistingStudent">
+        Confirm
+      </el-button>
     </div>
   </el-form>
 </template>
 
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { isAxiosError } from 'axios'
 import type { Student } from '@/apis/student/types'
 import type { FormInstance } from 'element-plus'
-import { findStudentById, updateStudent } from '@/apis/student'
+import { deactivateStudent, findStudentById, updateStudent } from '@/apis/student'
 import { ref, onMounted } from 'vue'
 
 const { studentId } = defineProps(['studentId'])
-const emit = defineEmits(['close-dialog'])
+const emit = defineEmits(['close-dialog', 'status-changed'])
+
+const loaded = ref(false)
+const active = ref(false)
+const enableOnSave = ref(false)
+const deactivating = ref(false)
 
 // Note that the structure of the userData is NOT the same as the User interface since the roles are stored as an array
 const studentBeingEdited = ref<Student>({
@@ -74,7 +89,6 @@ const rules = {
       trigger: 'blur'
     }
   ],
-  enabled: [{ required: true, message: 'Please select the status of the user.', trigger: 'blur' }],
   firstName: [
     { required: true, message: 'Please provide the first name of the user.', trigger: 'blur' }
   ],
@@ -93,11 +107,12 @@ async function loadStudent(studentId: number) {
 
   studentBeingEdited.value.id = result.data.id as number
   studentBeingEdited.value.username = result.data.username
-  studentBeingEdited.value.enabled = result.data.enabled
+  active.value = result.data.enabled === true
   studentBeingEdited.value.firstName = result.data.firstName
   studentBeingEdited.value.lastName = result.data.lastName
   studentBeingEdited.value.email = result.data.email
   studentBeingEdited.value.teamName = result.data.teamName
+  loaded.value = true
 }
 
 onMounted(() => {
@@ -110,17 +125,39 @@ async function updateExistingStudent() {
   const updatedStudent: Student = {
     id: studentBeingEdited.value.id,
     username: studentBeingEdited.value.username,
-    enabled: studentBeingEdited.value.enabled,
+    enabled: active.value || enableOnSave.value,
     firstName: studentBeingEdited.value.firstName,
     lastName: studentBeingEdited.value.lastName,
     email: studentBeingEdited.value.email
   }
-  console.log(updatedStudent)
-  // Call the API to update the user
-  await updateStudent(updatedStudent)
+  await updateStudent(updatedStudent, !active.value && enableOnSave.value)
 
   ElMessage.success('Student updated successfully')
   emit('close-dialog')
+}
+
+async function confirmDeactivation() {
+  if (deactivating.value) return
+  deactivating.value = true
+  try {
+    await ElMessageBox.confirm(
+      'This student will lose access, stop receiving reminders, and no longer be asked to submit work. Teammates will no longer be asked to rate this student. Their team membership, activity reports, and existing peer evaluations will be kept.',
+      'Deactivate Student?',
+      { type: 'warning', confirmButtonText: 'Deactivate', cancelButtonText: 'Cancel' }
+    )
+    await deactivateStudent(studentId)
+    active.value = false
+    emit('status-changed')
+    ElMessage.success('Student deactivated.')
+  } catch (error) {
+    // The request interceptor displays API errors. A conflict means another request already succeeded.
+    if (isAxiosError(error) && error.response?.status === 409) {
+      active.value = false
+      emit('status-changed')
+    }
+  } finally {
+    deactivating.value = false
+  }
 }
 </script>
 

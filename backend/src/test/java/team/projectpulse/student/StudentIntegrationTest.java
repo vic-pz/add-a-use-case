@@ -13,6 +13,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import team.projectpulse.evaluation.PeerEvaluationRepository;
+import team.projectpulse.instructor.Instructor;
+import jakarta.persistence.EntityManager;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.util.LinkedMultiValueMap;
@@ -26,6 +29,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Integration tests for Student API endpoints")
 class StudentIntegrationTest extends AbstractIntegrationTest {
@@ -35,6 +40,15 @@ class StudentIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     JsonMapper jsonMapper;
+
+    @Autowired
+    StudentRepository studentRepository;
+
+    @Autowired
+    PeerEvaluationRepository evaluationRepository;
+
+    @Autowired
+    EntityManager entityManager;
 
     String adminToken;
 
@@ -81,6 +95,63 @@ class StudentIntegrationTest extends AbstractIntegrationTest {
         contentAsString = mvcResult.getResponse().getContentAsString();
         json = new JSONObject(contentAsString);
         this.adminTimToken = "Bearer " + json.getJSONObject("data").getString("token");
+    }
+
+    @Test
+    void authorizedInstructorDeactivatesStudentAndPreviouslyIssuedTokenStopsWorking() throws Exception {
+        Student john = this.studentRepository.findById(4).orElseThrow();
+        Integer teamId = john.getTeam().getTeamId();
+        Integer sectionId = john.getSection().getSectionId();
+        long savedEvaluations = this.evaluationRepository.count();
+        long savedActivities = this.entityManager.createQuery("select count(activity) from Activity activity", Long.class)
+                .getSingleResult();
+        String details = this.baseUrl + "/students/4";
+
+        this.mockMvc.perform(get(details).header(HttpHeaders.AUTHORIZATION, this.studentJohnToken))
+                .andExpect(status().isOk());
+        this.mockMvc.perform(post(details + "/deactivate").header(HttpHeaders.AUTHORIZATION, this.instructorBillToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.enabled").value(false))
+                .andExpect(jsonPath("$.data.teamId").value(teamId))
+                .andExpect(jsonPath("$.data.sectionId").value(sectionId));
+
+        this.entityManager.flush();
+        this.entityManager.clear();
+        assertThat(this.studentRepository.findById(4).orElseThrow().isEnabled()).isFalse();
+        assertThat(this.evaluationRepository.count()).isEqualTo(savedEvaluations);
+        assertThat(this.entityManager.createQuery("select count(activity) from Activity activity", Long.class)
+                .getSingleResult()).isEqualTo(savedActivities);
+        this.mockMvc.perform(get(details).header(HttpHeaders.AUTHORIZATION, this.studentJohnToken))
+                .andExpect(status().isUnauthorized());
+        this.mockMvc.perform(post(details + "/deactivate").header(HttpHeaders.AUTHORIZATION, this.instructorBillToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Already deactivated."));
+    }
+
+    @Test
+    void studentAndOutOfScopeInstructorCannotDeactivate() throws Exception {
+        String path = this.baseUrl + "/students/4/deactivate";
+        this.mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, this.studentJohnToken))
+                .andExpect(status().isForbidden());
+        this.mockMvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, this.adminTimToken))
+                .andExpect(status().isForbidden());
+        assertThat(this.studentRepository.findById(4).orElseThrow().isEnabled()).isTrue();
+    }
+
+    @Test
+    void courseOwnerCanDeactivateWithoutTeachingTheSection() throws Exception {
+        Student john = this.studentRepository.findById(4).orElseThrow();
+        Instructor courseOwner = john.getSection().getCourse().getCourseAdmin();
+        john.getSection().getInstructors().remove(courseOwner);
+        this.entityManager.flush();
+        this.entityManager.clear();
+
+        this.mockMvc.perform(put(this.baseUrl + "/instructors/sections/" + john.getSection().getSectionId() + "/default")
+                        .header(HttpHeaders.AUTHORIZATION, this.adminToken))
+                .andExpect(status().isOk());
+        this.mockMvc.perform(post(this.baseUrl + "/students/4/deactivate").header(HttpHeaders.AUTHORIZATION, this.adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.enabled").value(false));
     }
 
     @Test

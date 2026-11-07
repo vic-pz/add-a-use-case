@@ -9,8 +9,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -104,25 +103,36 @@ public class StudentService {
         return savedStudent;
     }
 
-    public Student updateStudent(Integer studentId, Student update) {
-        Student oldStudent = this.studentRepository.findById(studentId)
-                .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
+    public Student deactivateStudent(Integer studentId) {
+        Student student = findManagedStudentForUpdate(studentId);
+        if (!student.isEnabled()) {
+            throw new StudentAlreadyDeactivatedException();
+        }
+        student.setEnabled(false);
+        return this.studentRepository.save(student);
+    }
 
-        // If the user is not an admin, then the user can only update her username, first rubricName, last rubricName, and email
+    public Student updateStudent(Integer studentId, Student update, boolean reactivate) {
+        Student oldStudent = reactivate
+                ? findManagedStudentForUpdate(studentId)
+                : this.studentRepository.findForUpdate(studentId)
+                        .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
+
         oldStudent.setUsername(update.getUsername());
         oldStudent.setFirstName(update.getFirstName());
         oldStudent.setLastName(update.getLastName());
         oldStudent.setEmail(update.getEmail());
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        // If the user is an admin, then the user can update all the fields
-        if (authentication.getAuthorities().stream().anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_instructor"))) {
-            oldStudent.setEnabled(update.isEnabled());
-//            oldStudent.setRoles(update.getRoles());
+        if (reactivate && update.isEnabled()) {
+            oldStudent.setEnabled(true);
         }
 
         return this.studentRepository.save(oldStudent);
+    }
+
+    private Student findManagedStudentForUpdate(Integer studentId) {
+        return this.studentRepository.findManagedForUpdate(studentId, this.userUtils.getUserId())
+                .orElseThrow(() -> new AccessDeniedException("You cannot manage this student's account."));
     }
 
     public void deleteStudent(Integer studentId) {
