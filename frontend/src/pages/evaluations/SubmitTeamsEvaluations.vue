@@ -219,7 +219,11 @@ async function prepareStartingPeerEvaluations(drafts: PeerEvaluation[] = []) {
         }
       )
     })
-  peerEvalutions.value = [...result.data, ...missing]
+  const saved = result.data.map((row) => {
+    const draft = draftsById.get(row.evaluateeId)
+    return draft && draft.evaluationId === row.evaluationId ? draft : row
+  })
+  peerEvalutions.value = [...saved, ...missing]
 }
 
 async function savePeerEvaluations() {
@@ -236,7 +240,9 @@ async function savePeerEvaluations() {
       // Another instructor may have deactivated a teammate while this form was open.
       // Refresh the roster and saved rows before retrying the remaining drafts.
       await loadStudents()
-      await prepareStartingPeerEvaluations(rows)
+      await prepareStartingPeerEvaluations(
+        rows.filter((_, index) => results[index]?.status === 'rejected')
+      )
       return
     }
     peerEvalutions.value = results.flatMap((result) =>

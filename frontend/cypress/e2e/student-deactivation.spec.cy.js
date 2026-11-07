@@ -27,7 +27,9 @@ describe('Student deactivation', () => {
   beforeEach(() => {
     let enabled = true
     cy.intercept('POST', '**/students/search*', (request) => {
-      request.reply(result({ content: [{ ...student, enabled }], totalElements: 1 }))
+      request.reply(
+        result({ content: [{ ...student, enabled }], totalElements: 1, number: 0, size: 50 })
+      )
     }).as('roster')
     cy.intercept('GET', '**/students/4', (request) =>
       request.reply(result({ ...student, enabled }))
@@ -52,6 +54,7 @@ describe('Student deactivation', () => {
   })
 
   it('sends one request after confirmation and refreshes the visible status (STU-01)', () => {
+    cy.get('.el-message-box').screenshot('deactivation-warning')
     cy.get('.el-message-box').should('contain', 'existing peer evaluations will be kept')
     cy.get('.el-message-box')
       .contains('button', /^Deactivate$/)
