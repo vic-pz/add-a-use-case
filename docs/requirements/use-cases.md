@@ -1472,6 +1472,9 @@ Details:
 7. Use case ends.
 
 **Extensions:**
+- **2a. The caller is not authorized to deactivate the selected student under BR-student-lifecycle:**
+  - 2a1. The system denies the action and makes no changes.
+  - 2a2. Use case ends.
 - **3a. The selected student is already inactive, or becomes inactive before confirmation is processed:**
   - 3a1. The system reports that the selected student is already deactivated and makes no changes.
   - 3a2. Use case ends.
